@@ -9,6 +9,8 @@ This repo allows you to
 
 For example, this can be used to create an offline backup, run a screensaver on your machine, or to export your photos if you want to stop using Google Photos.
 
+For more context, see `https://daveagp.wordpress.com/2024/04/29/google-photos-api-for-export-and-one-day-an-ubuntu-screensaver/`
+
 ## HOWTO
 
 1. You have to create a "Google APIs & Services" application. This is using the Google Cloud Console. You don't actually need to sign up or pay for Google Cloud services itself.
@@ -36,3 +38,5 @@ If you get an `invalid_grant: Token has been expired or revoked` error, try dele
 * Make `feh` into an actual screensaver that turns on when your computer detects no user activity.
 
 * Check for duplicate photos (e.g. with different size) by looking for duplicate exif timestamps or filenames.
+
+* Somehow deal with non-jpg things

@@ -11,13 +11,26 @@ import json
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
-import google_auth_httplib2  # This gotta be installed for build() to work
-import requests # edited
+import google_auth_httplib2
+import requests
 from PIL import Image, ExifTags
 from datetime import datetime
 from datetime import timedelta
 from dateutil import parser
 import piexif
+
+# Change these parameters if you wish
+PORT = 8888
+PAGE_SIZE = 100
+INFO_DIR = "/home/daveagp/pyphotos/info/"
+IMAGE_DIR = "/home/daveagp/pyphotos/images/"
+MAX_DOWNLOADS = 50000
+MAX_INFOS = 100000
+TZ_HOURS = 7  # default conversion time zone you want from Google Photos API. 7 = LAX
+USE_MAX_SIZE = True
+MAX_WIDTH = 1920
+MAX_HEIGHT = 1080
+IGNORE_PHOTOS_AFTER = "2015-05-14"  # Optionally, ignore recent photos
 
 # Setup the Photo v1 API
 SCOPES = ['https://www.googleapis.com/auth/photoslibrary.readonly']
@@ -30,22 +43,16 @@ if not creds or not creds.valid:
         creds.refresh(Request())
     else:
         flow = InstalledAppFlow.from_client_secrets_file('client_secret.json', SCOPES)
-        creds = flow.run_local_server(port = 8888)
+        creds = flow.run_local_server(port = PORT)
     with open("token.pickle", "wb") as tokenFile:
         pickle.dump(creds, tokenFile)
 service = build('photoslibrary', 'v1', credentials = creds, static_discovery = False)
 
 # Call the Photo v1 API
-PAGE_SIZE = 100
 results = service.mediaItems().list(
     pageSize=PAGE_SIZE, fields="nextPageToken,mediaItems").execute()
 items = results.get('mediaItems', [])
 token = results.get('nextPageToken', None)
-
-INFO_DIR = "/home/daveagp/pyphotos/info/"
-IMAGE_DIR = "/home/daveagp/pyphotos/images/"
-MAX_DOWNLOADS = 50000
-MAX_INFOS = 100000
 
 downloads = 0
 infos = 0
@@ -68,14 +75,15 @@ while token is not None and infos < MAX_INFOS:
         if item['mimeType'] != 'image/jpeg':
             print('Skipping mimeType', item['mimeType'])
             continue
-        if googleTimestamp[:10] >= "2015-05-14":
+        if googleTimestamp[:10] >= IGNORE_PHOTOS_AFTER:
             print('Skipping recent', googleTimestamp[:10])
             continue
         if downloads >= MAX_DOWNLOADS:
             continue
         image_filename = IMAGE_DIR + item['id'] + '.jpg'
         if not os.path.isfile(image_filename):
-            r = requests.get(item['baseUrl']+"=w1920-h1080")#"=d")
+            suffix = 'w'+str(MAX_WIDTH)+'-h'+str(MAX_HEIGHT) if USE_MAX_SIZE else 'd'
+            r = requests.get(item['baseUrl']+"="+suffix)
             if r.status_code == 200:
                 open(image_filename, "wb").write(r.content)
                 downloads += 1
@@ -98,6 +106,7 @@ while token is not None and infos < MAX_INFOS:
                 if exifDate is not None:
                     exif_dt = datetime.strptime(exifDate, "%Y:%m:%d %H:%M:%S")
                     days_diff = (exif_dt - googleDate.replace(tzinfo=None)).days
+                    # If delta is larger than what time zones could explain, override
                     if abs(days_diff) > 2:
                         print('needs new exif date')
                         print(exifDate)
@@ -106,7 +115,7 @@ while token is not None and infos < MAX_INFOS:
                 if needsNewExifDate:
                     exif_dict = piexif.load(image_filename)
                     # this seems to be hard-coded due to my account? or else there is not enough info exposed by google photos api to do better
-                    new_date = (googleDate - timedelta(hours=7)).strftime("%Y:%m:%d %H:%M:%S")
+                    new_date = (googleDate - timedelta(hours=TZ_HOURS)).strftime("%Y:%m:%d %H:%M:%S")
                     print(new_date)
                     exif_dict['0th'][piexif.ImageIFD.DateTime] = new_date
                     exif_dict['Exif'][piexif.ExifIFD.DateTimeOriginal] = new_date
@@ -124,7 +133,8 @@ while token is not None and infos < MAX_INFOS:
     items = results.get('mediaItems', [])
     token = results.get('nextPageToken', None)
 
-"""- creationTime is meant to reference the camera's zone when the photo was taken
+"""
+- creationTime is meant to reference the camera's zone when the photo was taken
 - the time zone is not explicitly part of the Google Photos API, but it is there implicitly
 -- e.g. Toronto photos have UTC in creationTime but Toronto time in Photos UI, and these can be different dates
 - EXIF generally has the right time/date/zone
