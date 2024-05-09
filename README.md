@@ -40,3 +40,9 @@ If you get an `invalid_grant: Token has been expired or revoked` error, try dele
 * Check for duplicate photos (e.g. with different size) by looking for duplicate exif timestamps or filenames.
 
 * Somehow deal with non-jpg things
+
+* What's the deal with grouped multiple photos where there is a "main" one
+
+* Exclude certain folders, e.g. archival construction of plumbing
+
+* Don't forget to organize the wedding day photos
